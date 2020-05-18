@@ -6,6 +6,7 @@ import traceback
 from stix_shifter_utils.utils.error_mapper_base import ErrorMapperBase
 import collections
 import json
+import os
 
 class ErrorCode(Enum):
     TRANSLATION_NOTIMPLEMENTED_MODE = 'not_implemented'
@@ -106,7 +107,8 @@ class ErrorResponder():
 
     @staticmethod
     def call_module_error_mapper(json_data, return_object):
-        caller_path_list = traceback.extract_stack()[-3].filename.split('/')
+        #caller_path_list = traceback.extract_stack()[-3].filename.split('/')
+        caller_path_list = traceback.extract_stack()[-3].filename.split(os.sep)
 
         if 'stix_translation.py' in caller_path_list[-1]:
             module_path = 'stix_shifter_utils.stix_translation.stix_translation_error_mapper'
