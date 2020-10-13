@@ -1,13 +1,11 @@
 from stix_shifter_utils.stix_translation.src.json_to_stix import json_to_stix_translator
-from stix_shifter_utils.stix_translation.src.utils import transformers
 from stix_shifter_modules.aws_cloud_watch_logs.entry_point import EntryPoint
-import json
 import unittest
+from stix_shifter_utils.stix_translation.src.utils.transformer_utils import get_module_transformers
 
+MODULE = "aws_cloud_watch_logs"
 entry_point = EntryPoint()
-map_file = open(entry_point.get_results_translator().default_mapping_file_path).read()
-
-map_data = json.loads(map_file)
+map_data = entry_point.get_results_translator().map_data
 data_source = {
     "type": "identity",
     "id": "identity--f431f809-377b-45e0-aa1c-6a4751cae5ff",
@@ -148,7 +146,7 @@ class TestAwsResultsToStix(unittest.TestCase):
                               '@timestamp': '2019-10-18 03:00:05.000', 'event_count': 1}}
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         assert result_bundle['type'] == 'bundle'
         result_bundle_objects = result_bundle['objects']
 
@@ -162,8 +160,8 @@ class TestAwsResultsToStix(unittest.TestCase):
         assert observed_data['id'] is not None
         assert observed_data['type'] == "observed-data"
         assert observed_data['created_by_ref'] == result_bundle_identity['id']
-        assert observed_data['x_com_aws_guardduty_finding'] is not None
-        assert observed_data['x_com_aws'] is not None
+        assert observed_data['x_aws_guardduty_finding'] is not None
+        assert observed_data['x_aws'] is not None
         assert observed_data['created'] is not None
         assert observed_data['modified'] is not None
         assert observed_data['number_observed'] is not None
@@ -179,7 +177,7 @@ class TestAwsResultsToStix(unittest.TestCase):
                             'SjoyP/F3i0wyPyNxt4tOCxA7TFI0ClQzyIQJRgB',
                         'event_count': 1}}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
 
         result_bundle_identity = result_bundle_objects[0]
@@ -212,7 +210,7 @@ class TestAwsResultsToStix(unittest.TestCase):
                             'ASjoyP/F3i0wyPyNxt4tOCxA7TFI0ClQzyIQJRgB',
                         'event_count': 1}}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
 
         result_bundle_identity = result_bundle_objects[0]
@@ -221,7 +219,7 @@ class TestAwsResultsToStix(unittest.TestCase):
         observed_data = result_bundle_objects[1]
 
         assert 'objects' in observed_data
-        custom_object = observed_data['x_com_aws']
+        custom_object = observed_data['x_aws']
 
         assert custom_object.keys() == {'account_id'}
         assert custom_object['account_id'] == '979326520502'
@@ -332,7 +330,7 @@ class TestAwsResultsToStix(unittest.TestCase):
                                                     'password.',
                               '@timestamp': '2019-10-17 09:30:05.000', 'event_count': 1}}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
 
         result_bundle_identity = result_bundle_objects[0]
@@ -453,7 +451,7 @@ class TestAwsResultsToStix(unittest.TestCase):
                                                     'password.',
                               '@timestamp': '2019-10-17 09:30:05.000', 'event_count': 1}}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
 
         result_bundle_identity = result_bundle_objects[0]
@@ -462,7 +460,7 @@ class TestAwsResultsToStix(unittest.TestCase):
         observed_data = result_bundle_objects[1]
 
         assert 'objects' in observed_data
-        custom_object = observed_data['x_com_aws_guardduty_finding']
+        custom_object = observed_data['x_aws_guardduty_finding']
 
         assert custom_object.keys() == {'severity', 'id', 'type', 'title', 'timestamp'}
         assert custom_object['id'] == '6cb6e99751fcbed76aae1a9a64bb96a8'

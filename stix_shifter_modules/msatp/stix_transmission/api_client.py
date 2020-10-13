@@ -8,7 +8,6 @@ DEFAULT_OFFSET = 0
 
 class APIClient:
     """API Client to handle all calls."""
-    PING_TIMEOUT_IN_SECONDS = 10
 
     def __init__(self, connection, configuration):
         """Initialization.
@@ -27,18 +26,17 @@ class APIClient:
 
         self.client = RestApiClient(connection.get('host'),
                                     connection.get('port', None),
-                                    connection.get('cert', None),
                                     headers,
                                     url_modifier_function=url_modifier_function,
                                     cert_verify=connection.get('selfSignedCert', True),
-                                    mutual_auth=connection.get('use_securegateway', False),
                                     sni=connection.get('sni', None)
                                     )
+        self.timeout = connection['options'].get('timeout')
 
     def ping_box(self):
         """Ping the endpoint."""
         endpoint = '/api'
-        return self.client.call_api(endpoint, 'GET', timeout=self.PING_TIMEOUT_IN_SECONDS)
+        return self.client.call_api(endpoint, 'GET', timeout=self.timeout)
 
     def run_search(self, query_expression, offset=DEFAULT_OFFSET, length=DEFAULT_LIMIT):
         """get the response from MSatp endpoints
@@ -53,4 +51,4 @@ class APIClient:
         endpoint = self.endpoint
         query_expression = query_expression + serialize.format(offset=offset, length=length)
         query_expression = json.dumps({'Query': query_expression}).encode("utf-8")
-        return self.client.call_api(endpoint, 'POST', headers=headers, data=query_expression)
+        return self.client.call_api(endpoint, 'POST', headers=headers, data=query_expression, timeout=self.timeout)

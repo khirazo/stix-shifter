@@ -1,54 +1,50 @@
 import requests
 from requests_toolbelt.adapters import host_header_ssl
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+from stix_shifter_utils.stix_transmission.utils.timeout_http_adapter import TimeoutHTTPAdapter
 import sys
 import collections
 import os
 import errno
 import uuid
 
+from stix_shifter_utils.utils import logger
+
 # This is a simple HTTP client that can be used to access the REST API
 
-class RestApiClient:
-    #cert_verify can be True -- do proper signed cert check, False -- skip all cert checks, or a Cert -- use the proper cleint side cert
-    #mutual_auth is in the case the gateway is being used
-    def __init__(self, host, port=None, cert=None, headers={}, url_modifier_function=None, cert_verify=True,
-                 mutual_auth=False, sni=None):
+RETRY_MAX = 3
 
-        uniqueFileHandle = uuid.uuid4()
-        self.client_cert_name = "/tmp/{0}-client_cert.pem".format(uniqueFileHandle)
-        self.server_cert_name = "/tmp/{0}-server_cert.pem".format(uniqueFileHandle)
+class RestApiClient:
+    # cert_verify can be
+    #  True -- do proper signed cert check that is in trust store,
+    #  False -- skip all cert checks,
+    #  or The String content of your self signed cert required for TLS communication
+    def __init__(self, host, port=None, headers={}, url_modifier_function=None, cert_verify=True,  sni=None):
+        self.logger = logger.set_logger(__name__)
+        unique_file_handle = uuid.uuid4()
+        self.server_cert_name = "/tmp/{0}-server_cert.pem".format(unique_file_handle)
         server_ip = host
         if port is not None:
             server_ip += ":" + str(port)
         self.server_ip = server_ip
-        #sni is none unless we are using a server cert
+        # sni is none unless we are using a server cert
         self.sni = None
-        #Gateway Case -- use client cert cert_verify is None
-        if mutual_auth:
-            self.server_cert_content = None
-            self.server_cert_file_content_exists = False
-            self.client_cert_content = self.client_cert_name
-            self.client_cert_file_content_exists = True
-            self.client_cert_file_content = cert
-        #verify is true or false
-        elif isinstance(cert_verify, bool):
+
+        if isinstance(cert_verify, bool):
+            # verify certificate non self signed case
             if cert_verify:
                 self.server_cert_content = True
                 self.server_cert_file_content_exists = False
-                self.client_cert_content = None
-                self.client_cert_file_content_exists = False
+            # ignore certificates all together
             else:
                 self.server_cert_content = False
                 self.server_cert_file_content_exists = False
-                self.client_cert_content = None
-                self.client_cert_file_content_exists = False
-        #server cert provided
+        # self signed cert provided
         elif isinstance(cert_verify, str):
             self.server_cert_content = self.server_cert_name
             self.server_cert_file_content_exists = True
             self.server_cert_file_content = cert_verify
-            self.client_cert_content = None
-            self.client_cert_file_content_exists = False
             if sni is not None:
                 self.sni = sni
 
@@ -56,24 +52,15 @@ class RestApiClient:
         self.url_modifier_function = url_modifier_function
 
     # This method is used to set up an HTTP request and send it to the server
-    def call_api(self, endpoint, method, headers=None, params=[], data=None, urldata=None, timeout=None):
+    def call_api(self, endpoint, method, headers=None, data=None, urldata=None, timeout=None):
         try:
-
-            # convert client cert to file
-            if self.client_cert_file_content_exists is True:
-                with open(self.client_cert_name, 'w') as f:
-                    try:
-                        f.write(self.client_cert_file_content)
-                    except IOError:
-                        print('Failed to setup certificate')
-
             # covnert server cert to file
             if self.server_cert_file_content_exists is True:
                 with open(self.server_cert_name, 'w') as f:
                     try:
                         f.write(self.server_cert_file_content)
                     except IOError:
-                        print('Failed to setup certificate')
+                        self.logger.error('Failed to setup certificate')
 
             url = None
             actual_headers = self.headers.copy()
@@ -87,35 +74,32 @@ class RestApiClient:
             else:
                 url = 'https://' + self.server_ip + '/' + endpoint
             try:
-                call = getattr(requests, method.lower())
+                session = requests.Session()
+                retry_strategy = Retry(total=RETRY_MAX, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504],
+                                        method_whitelist=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE"])
+                session.mount("http://", TimeoutHTTPAdapter(max_retries=retry_strategy))
 
-                # only use the tool belt session in case of SNI for safety
                 if self.sni is not None:
-                    session = requests.Session()
-                    call = getattr(session, method.lower())
-                    session.mount('https://', host_header_ssl.HostHeaderSSLAdapter())
+                    # only use the tool belt session in case of SNI for safety
+                    session.mount('https://', host_header_ssl.HostHeaderSSLAdapter(max_retries=RETRY_MAX))
                     actual_headers["Host"] = self.sni
+                else:
+                    session.mount("https://", TimeoutHTTPAdapter(max_retries=retry_strategy))
+                call = getattr(session, method.lower())
+                response = call(url, headers=actual_headers, params=urldata, data=data, verify=self.server_cert_content, timeout=timeout)
 
-                response = call(url, headers=actual_headers, params=urldata, cert=self.client_cert_content, data=data, verify=self.server_cert_content, timeout=timeout)
-
-                if 'headers' in dir(response) and isinstance(response.headers, collections.Mapping) and 'Content-Type' in response.headers \
-                        and "Deprecated" in response.headers['Content-Type']:
-                    print("WARNING: " +
+                if 'headers' in dir(response) and isinstance(response.headers, collections.Mapping) and \
+                   'Content-Type' in response.headers and "Deprecated" in response.headers['Content-Type']:
+                    self.logger.error("WARNING: " +
                           response.headers['Content-Type'], file=sys.stderr)
                 return ResponseWrapper(response)
             except Exception as e:
-                print('exception occured during requesting url: ' + str(e))
+                self.logger.error('exception occured during requesting url: ' + str(e))
                 raise e
         finally:
             if self.server_cert_file_content_exists is True:
                 try:
                     os.remove(self.server_cert_name)
-                except OSError as e:
-                    if e.errno != errno.ENOENT:
-                        raise
-            if self.client_cert_file_content_exists is True:
-                try:
-                    os.remove(self.client_cert_name)
                 except OSError as e:
                     if e.errno != errno.ENOENT:
                         raise

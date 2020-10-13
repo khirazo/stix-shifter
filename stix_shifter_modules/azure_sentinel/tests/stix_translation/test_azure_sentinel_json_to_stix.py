@@ -1,13 +1,11 @@
-import json
 import unittest
-from stix_shifter_utils.stix_translation.src.utils import transformers
 from stix_shifter_utils.stix_translation.src.json_to_stix import json_to_stix_translator
 from stix_shifter_modules.azure_sentinel.entry_point import EntryPoint
+from stix_shifter_utils.stix_translation.src.utils.transformer_utils import get_module_transformers
 
-
+MODULE = "azure_sentinel"
 entry_point = EntryPoint()
-map_file = open(entry_point.get_results_translator().default_mapping_file_path).read()
-map_data = json.loads(map_file)
+map_data = entry_point.get_results_translator().map_data
 data_source = {
     "type": "identity",
     "id": "identity--3532c56d-ea72-48be-a2ad-1a53f4c9c6d3",
@@ -77,7 +75,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
                 'userStates_0_logonId': '0x3e7', 'userStates_0_onPremisesSecurityIdentifier': 'S-1-5-18',
                 'userStates_0_userPrincipalName': 'test-window$@TEST-WINDOW', 'event_count': '1'}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         assert result_bundle['type'] == 'bundle'
         result_bundle_objects = result_bundle['objects']
 
@@ -136,13 +134,13 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
                 'userStates_0_logonId': '0x3e7', 'userStates_0_onPremisesSecurityIdentifier': 'S-1-5-18',
                 'userStates_0_userPrincipalName': 'test-window$@TEST-WINDOW', 'event_count': '1'}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         assert result_bundle['type'] == 'bundle'
         result_bundle_objects = result_bundle['objects']
 
         observed_data = result_bundle_objects[1]
-        custom_object_1 = observed_data['x_com_msazure_sentinel']
-        custom_object_2 = observed_data['x_com_msazure_sentinel_alert']
+        custom_object_1 = observed_data['x_msazure_sentinel']
+        custom_object_2 = observed_data['x_msazure_sentinel_alert']
 
         assert custom_object_1.keys() == {'tenant_id', 'subscription_id'}
         assert custom_object_2.keys() == {'id','title', 'provider', 'vendor'}
@@ -192,7 +190,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
                 'userStates_0_logonId': '0x3e7', 'userStates_0_onPremisesSecurityIdentifier': 'S-1-5-18',
                 'userStates_0_userPrincipalName': 'test-window$@TEST-WINDOW', 'event_count': '1'}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
 
         result_bundle_objects = result_bundle['objects']
 
@@ -206,6 +204,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
 
         file_obj = TestAzureSentinelResultsToStix.get_first_of_type(objects.values(), 'file')
         process_obj = TestAzureSentinelResultsToStix.get_first_of_type(objects.values(), 'process')
+        directory_obj = TestAzureSentinelResultsToStix.get_first_of_type(objects.values(), 'directory')
 
         assert file_obj is not None, 'file object type not found'
         assert file_obj .keys() == {'type', 'name', 'parent_directory_ref'}
@@ -217,6 +216,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
         assert process_obj['type'] == 'process'
         assert process_obj['name'] == 'services.exe'
         assert process_obj['binary_ref'] == '0'
+        assert directory_obj['path'] == 'c:\\windows\\system32'
 
     @staticmethod
     def test_network_json_to_stix():
@@ -243,7 +243,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
                 'networkConnections_0_destinationPort': '22', 'networkConnections_0_protocol': 'tcp',
                 'networkConnections_0_sourceAddress': '118.32.223.14', 'event_count': '1'}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
 
         result_bundle_identity = result_bundle_objects[0]
@@ -288,7 +288,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
                  'networkConnections_0_destinationPort': '22', 'networkConnections_0_protocol': 'tcp',
                  'networkConnections_0_sourceAddress': '118.32.223.14', 'event_count': '1'}]
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, data, transformers.get_all_transformers(), options)
+            data_source, map_data, data, get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
 
         result_bundle_identity = result_bundle_objects[0]
@@ -307,7 +307,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
         message = "\"GET /blog HTTP/1.1\" 200 2571"
         data = {"message": message, "unmapped": "nothing to see here"}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
         observed_data = result_bundle_objects[1]
         assert 'objects' in observed_data
@@ -320,7 +320,7 @@ class TestAzureSentinelResultsToStix(unittest.TestCase):
     def test_unmapped_attribute_alone():
         data = {"unmapped": "nothing to see here"}
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
         result_bundle_objects = result_bundle['objects']
         observed_data = result_bundle_objects[1]
         assert 'objects' in observed_data

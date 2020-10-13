@@ -1,19 +1,17 @@
+import logging
 from stix_shifter_utils.stix_translation.src.json_to_stix import json_to_stix_translator
-from stix_shifter_utils.stix_translation.src.utils import transformers
 from stix_shifter.stix_translation import stix_translation
 from stix_shifter_modules.splunk.entry_point import EntryPoint
 from stix2validator import validate_instance
 from stix_shifter_modules.splunk.stix_translation.splunk_utils import hash_type_lookup
+from stix_shifter_utils.stix_translation.src.utils.transformer_utils import get_module_transformers
 
-import json
-import logging
-
+MODULE = "splunk"
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 
 entry_point = EntryPoint()
-map_file = open(entry_point.get_results_translator().default_mapping_file_path).read()
-map_data = json.loads(map_file)
+map_data = entry_point.get_results_translator().map_data
 data_source = {
     "type": "identity",
     "id": "identity--3532c56d-ea72-48be-a2ad-1a53f4c9c6d3",
@@ -39,7 +37,7 @@ class TestTransform(object):
         data = {"_time": "2018-08-21T15:11:55.000+00:00", "event_count": 5}
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
 
         assert(result_bundle['type'] == 'bundle')
         result_bundle_objects = result_bundle['objects']
@@ -84,7 +82,7 @@ class TestTransform(object):
         }
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options, callback=hash_type_lookup)
+            data_source, map_data, [data], get_module_transformers(MODULE), options, callback=hash_type_lookup)
 
         assert(result_bundle['type'] == 'bundle')
         result_bundle_objects = result_bundle['objects']
@@ -151,7 +149,7 @@ class TestTransform(object):
         }
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
 
         assert(result_bundle['type'] == 'bundle')
         result_bundle_objects = result_bundle['objects']
@@ -198,7 +196,7 @@ class TestTransform(object):
         }
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options, callback=hash_type_lookup)
+            data_source, map_data, [data], get_module_transformers(MODULE), options, callback=hash_type_lookup)
 
         assert(result_bundle['type'] == 'bundle')
         result_bundle_objects = result_bundle['objects']
@@ -264,7 +262,7 @@ class TestTransform(object):
                 }
         print(data)
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
 
         assert(result_bundle['type'] == 'bundle')
 
@@ -309,7 +307,7 @@ class TestTransform(object):
                 }
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options)
+            data_source, map_data, [data], get_module_transformers(MODULE), options)
 
         assert(result_bundle['type'] == 'bundle')
 
@@ -386,8 +384,7 @@ class TestTransform(object):
         }
 
         translation = stix_translation.StixTranslation()
-        result = translation.translate('splunk', 'results', data_source, data, options)
-        result_bundle = json.loads(result)
+        result_bundle = translation.translate('splunk', 'results', data_source, data, options)
 
         result_bundle_objects = result_bundle['objects']
         observed_data = result_bundle_objects[1]
@@ -423,7 +420,7 @@ class TestTransform(object):
                 }
 
         result_bundle = json_to_stix_translator.convert_to_stix(
-            data_source, map_data, [data], transformers.get_all_transformers(), options, callback=hash_type_lookup)
+            data_source, map_data, [data], get_module_transformers(MODULE), options, callback=hash_type_lookup)
 
         assert(result_bundle['type'] == 'bundle')
 
@@ -447,6 +444,7 @@ class TestTransform(object):
         assert(ip_obj.keys() == {'type', 'value', 'resolves_to_refs'})
         assert(ip_obj['type'] == 'ipv4-addr')
         assert(ip_obj['value'] == '127.0.0.1')
+        assert (isinstance(ip_obj['resolves_to_refs'], list) and isinstance(ip_obj['resolves_to_refs'][0], str))
 
         ip_ref = nt_obj['src_ref']
         assert(ip_ref in objects), "src_ref with key {nt_obj['src_ref']} not found"
@@ -454,6 +452,7 @@ class TestTransform(object):
         assert(ip_obj.keys() == {'type', 'value', 'resolves_to_refs'})
         assert(ip_obj['type'] == 'ipv4-addr')
         assert(ip_obj['value'] == '169.250.0.1')
+        assert (isinstance(ip_obj['resolves_to_refs'], list) and isinstance(ip_obj['resolves_to_refs'][0], str))
 
         file_obj = TestTransform.get_first_of_type(objects.values(), 'file')
         assert (file_obj is not None), 'file object type not found'

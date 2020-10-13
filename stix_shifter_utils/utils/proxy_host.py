@@ -1,5 +1,6 @@
 from stix_shifter.stix_translation import stix_translation
 from stix_shifter.stix_transmission import stix_transmission
+from stix_shifter_utils.utils import logger
 from flask import request
 import json
 
@@ -7,28 +8,31 @@ import json
 class ProxyHost():
 
     def __init__(self):
+        self.logger = logger.set_logger(__name__)
         self.request_args = request.get_json(force=True)
         self.connection = self.request_args.get("connection")
         self.configuration = self.request_args.get("configuration")
+        self.module = self.request_args.get("module")
         if self.connection:
             self.options = self.connection.get("options", {})
         else:
-            self.connection = self.request_args.get("options", {})
+            self.options = self.request_args.get("options", {})
 
     def transform_query(self):
         query = self.request_args["query"]
-        translation_module = self.connection['type'].lower()
         translation = stix_translation.StixTranslation()
-        dsl = translation.translate(translation_module, 'query', '{}', query, self.connection)
+        dsl = translation.translate(self.module, 'query', '{}', query, self.options)
         return json.dumps(dsl['queries'])
 
     def translate_results(self, data_source_identity_object):
-        data_source_results = json.dumps(self.request_args["results"] )
+        data_source_results = self.request_args["results"]
+        data_source = self.request_args.get("data_source")
+        if data_source_identity_object:
+            data_source = data_source_identity_object
 
-        print(data_source_results)
-        translation_module = self.connection['type'].lower()
+        self.logger.debug(data_source_results)
         translation = stix_translation.StixTranslation()
-        dsl = translation.translate(translation_module, 'results', data_source_identity_object, data_source_results, self.connection)
+        dsl = translation.translate(self.module, 'results', data_source, data_source_results, self.options)
         return json.dumps(dsl)
 
     def create_query_connection(self):

@@ -1,5 +1,6 @@
 import base64
 from stix_shifter_utils.stix_transmission.utils.RestApiClient import RestApiClient
+from stix_shifter_utils.utils import logger
 import json
 import re
 
@@ -8,9 +9,9 @@ DEFAULT_LIMIT = 10000
 
 class APIClient():
     PING_ENDPOINT = '_cluster/health?pretty'
-    PING_TIMEOUT_IN_SECONDS = 10
 
     def __init__(self, connection, configuration):
+        self.logger = logger.set_logger(__name__)
         headers = dict()
         url_modifier_function = None
         auth = configuration.get('auth')
@@ -36,16 +37,16 @@ class APIClient():
 
         self.client = RestApiClient(connection.get('host'),
                                     connection.get('port'),
-                                    connection.get('cert', None),
                                     headers,
                                     url_modifier_function=url_modifier_function,
                                     cert_verify=connection.get('selfSignedCert', True),
-                                    mutual_auth=connection.get('use_securegateway', False),
                                     sni=connection.get('sni', None)
                                     )
+        
+        self.timeout = connection['options'].get('timeout')
 
     def ping_box(self):
-        return self.client.call_api(self.PING_ENDPOINT, 'GET',timeout=self.PING_TIMEOUT_IN_SECONDS)
+        return self.client.call_api(self.PING_ENDPOINT, 'GET',timeout=self.timeout)
 
     def run_search(self, query_expression, offset=None, length=DEFAULT_LIMIT):
         headers = dict()
@@ -72,7 +73,7 @@ class APIClient():
             # addition of QueryString to API END point
             endpoint = endpoint + '?q=' + query_expression
 
-            return self.client.call_api(endpoint, 'GET', headers)
+            return self.client.call_api(endpoint, 'GET', headers, timeout=self.timeout)
         # Request body search
         else:
             # add size value
@@ -86,7 +87,7 @@ class APIClient():
             data = {
                 "_source": {
                     "includes": ["@timestamp", "source.*", "destination.*", "event.*", "client.*", "server.*",
-                                 "host.*","network.*", "process.*", "user.*", "file.*", "url.*"]
+                                 "host.*","network.*", "process.*", "user.*", "file.*", "url.*", "registry.*", "dns.*"]
                 },
                 "query": {
                     "query_string": {
@@ -95,7 +96,7 @@ class APIClient():
                 }
             }
 
-            print("URL endpoint: " + endpoint)
-            print("URL data: " + json.dumps(data))
+            self.logger.debug("URL endpoint: " + endpoint)
+            self.logger.debug("URL data: " + json.dumps(data))
 
-            return self.client.call_api(endpoint, 'GET', headers, data=json.dumps(data))
+            return self.client.call_api(endpoint, 'GET', headers, data=json.dumps(data), timeout=self.timeout)

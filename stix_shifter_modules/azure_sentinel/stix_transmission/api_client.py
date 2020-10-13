@@ -3,7 +3,6 @@ from stix_shifter_utils.stix_transmission.utils.RestApiClient import RestApiClie
 
 class APIClient:
     """API Client to handle all calls."""
-    PING_TIMEOUT_IN_SECONDS = 10
     
     def __init__(self, connection, configuration):
         """Initialization.
@@ -16,6 +15,7 @@ class APIClient:
         auth = configuration.get('auth')
         self.endpoint = '{api_version}/security/alerts'.format(api_version=default_api_version)
         self.host = connection.get('host')
+        self.timeout = connection['options'].get('timeout')
 
         if auth:
             if 'access_token' in auth:
@@ -23,11 +23,9 @@ class APIClient:
 
         self.client = RestApiClient(connection.get('host'),
                                     connection.get('port', None),
-                                    connection.get('cert', None),
                                     headers,
                                     url_modifier_function=url_modifier_function,
                                     cert_verify=connection.get('selfSignedCert', True),
-                                    mutual_auth=connection.get('use_securegateway', False),
                                     sni=connection.get('sni', None)
                                     )
 
@@ -35,7 +33,7 @@ class APIClient:
         """Ping the endpoint."""
         params = dict()
         params['$top'] = 1
-        return self.client.call_api(self.endpoint, 'GET', urldata=params, timeout=self.PING_TIMEOUT_IN_SECONDS)
+        return self.client.call_api(self.endpoint, 'GET', urldata=params, timeout=self.timeout)
 
     def run_search(self, query_expression, length):
         """get the response from azure_sentinel endpoints
@@ -47,7 +45,7 @@ class APIClient:
         params = dict()
         params['$filter'] = query_expression
         params['$top'] = length
-        return self.client.call_api(self.endpoint, 'GET', headers, urldata=params)
+        return self.client.call_api(self.endpoint, 'GET', headers, urldata=params, timeout=self.timeout)
 
     def next_page_run_search(self, next_page_url):
         """get the response from azure_sentinel endpoints
@@ -57,4 +55,4 @@ class APIClient:
         headers['Accept'] = 'application/json'
         url = next_page_url.split('?', maxsplit=1)[1]
         endpoint = self.endpoint + '?' + url
-        return self.client.call_api(endpoint, 'GET', headers)
+        return self.client.call_api(endpoint, 'GET', headers, timeout=self.timeout)

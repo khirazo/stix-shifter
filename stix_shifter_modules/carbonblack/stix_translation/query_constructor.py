@@ -2,8 +2,7 @@ import logging
 import datetime
 import json
 import re
-
-logger = logging.getLogger(__name__)
+from stix_shifter_utils.utils import logger
 
 from stix_shifter_utils.stix_translation.src.patterns.pattern_objects import ObservationExpression, ComparisonExpression, \
     ComparisonExpressionOperators, ComparisonComparators, Pattern, StartStopQualifier, \
@@ -30,6 +29,7 @@ class CbQueryStringPatternTranslator:
     }
 
     def __init__(self, pattern: Pattern, data_model_mapper, result_limit, time_range):
+        self.logger = logger.set_logger(__name__)
         self.dmm = data_model_mapper
         self.pattern = pattern
         self.result_limit = result_limit
@@ -158,8 +158,7 @@ class CbQueryStringPatternTranslator:
             self._annotate_expression(expression.expression)
             return
         else:
-            print(type(expression), expression)
-            assert False
+            self.logger.debug(type(expression), expression)
 
     # the return type of this function is a string for expressions types up to CombinedComparionExpression
     # for expressions of ObservableExpression or Higher in the grammar the return type is a list of dictionaries
